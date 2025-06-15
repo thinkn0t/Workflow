@@ -1,0 +1,135 @@
+#!/bin/bash
+
+set -e
+
+echo "📦 Setting up Neovim with Lazy.nvim and essential plugins..."
+
+NVIM_CONFIG="$HOME/.config/nvim"
+NVIM_DATA="$HOME/.local/share/nvim"
+
+# Create config directories
+mkdir -p "$NVIM_CONFIG"
+mkdir -p "$NVIM_DATA/site/pack"
+
+# Step 1: Install Lazy.nvim plugin manager
+LAZYPATH="$NVIM_DATA/lazy/lazy.nvim"
+if [ ! -d "$LAZYPATH" ]; then
+  echo "🔁 Installing Lazy.nvim..."
+  git clone --filter=blob:none https://github.com/folke/lazy.nvim.git "$LAZYPATH"
+fi
+
+# Step 2: Write init.lua config
+cat << 'EOF' > "$NVIM_CONFIG/init.lua"
+-- Leader key
+vim.g.mapleader = " "
+
+-- Basic UI
+vim.opt.termguicolors = true
+vim.opt.number = true
+vim.opt.relativenumber = true
+vim.opt.mouse = "" -- Allow terminal selection/copy again
+vim.opt.clipboard = "unnamedplus" -- Use system clipboard
+vim.cmd("syntax on")
+vim.cmd("filetype plugin indent on")
+vim.cmd("colorscheme tokyonight-night")
+
+-- Bootstrap Lazy
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+vim.opt.rtp:prepend(lazypath)
+
+-- Plugins
+require("lazy").setup({
+  -- File Explorer
+  {
+    "nvim-tree/nvim-tree.lua",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    config = function()
+      require("nvim-tree").setup({
+        view = { width = 30, relativenumber = true },
+        filters = { dotfiles = false },
+      })
+      vim.keymap.set("n", "<leader>e", "<cmd>NvimTreeToggle<CR>", { desc = "Toggle File Explorer" })
+    end,
+  },
+
+  -- Theme
+  {
+    "folke/tokyonight.nvim",
+    lazy = false,
+    priority = 1000,
+    config = function()
+      vim.cmd("colorscheme tokyonight-night")
+    end,
+  },
+
+  -- Telescope: Fuzzy finder
+  {
+    "nvim-telescope/telescope.nvim",
+    tag = "0.1.5",
+    dependencies = { "nvim-lua/plenary.nvim" },
+    config = function()
+      require("telescope").setup()
+      vim.keymap.set("n", "<leader>ff", "<cmd>Telescope find_files<CR>", { desc = "Find files" })
+      vim.keymap.set("n", "<leader>fg", "<cmd>Telescope live_grep<CR>", { desc = "Live grep" })
+    end,
+  },
+
+  -- LSP Support
+  {
+    "neovim/nvim-lspconfig",
+    config = function()
+      local lsp = require("lspconfig")
+      lsp.lua_ls.setup({})
+      lsp.pyright.setup({})
+    end,
+  },
+
+  -- Completion Engine
+  {
+    "hrsh7th/nvim-cmp",
+    dependencies = {
+      "hrsh7th/cmp-nvim-lsp",
+      "hrsh7th/cmp-buffer",
+      "hrsh7th/cmp-path",
+      "hrsh7th/cmp-cmdline",
+      "L3MON4D3/LuaSnip",
+    },
+    config = function()
+      local cmp = require("cmp")
+      cmp.setup({
+        snippet = {
+          expand = function(args)
+            require("luasnip").lsp_expand(args.body)
+          end,
+        },
+        mapping = cmp.mapping.preset.insert({
+          ["<Tab>"] = cmp.mapping.select_next_item(),
+          ["<S-Tab>"] = cmp.mapping.select_prev_item(),
+          ["<CR>"] = cmp.mapping.confirm({ select = true }),
+        }),
+        sources = cmp.config.sources({
+          { name = "nvim_lsp" },
+          { name = "buffer" },
+          { name = "path" },
+        }),
+      })
+    end,
+  },
+
+  -- Glow: Markdown preview
+  {
+    "ellisonleao/glow.nvim",
+    config = true,
+    cmd = "Glow",
+    opts = {
+      style = "dark",
+      width = 120,
+    },
+  },
+})
+EOF
+
+echo "✅ Configuration written to $NVIM_CONFIG/init.lua"
+echo "🚀 Launching Neovim to install plugins..."
+
+nvim +Lazy sync
